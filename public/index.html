@@ -384,6 +384,7 @@ const CONFIG = {
     txt(document.querySelector('.brand'), site.brand);
     txt(document.querySelector('.note h2'), site.noteTitle);
     txt(document.querySelector('.note p'), site.noteBody);
+    txt(document.querySelector('.note__cue'), site.noteCue);
 
     // 首屏标题：用 <br> 元素拼，不用 innerHTML
     if (Array.isArray(site.heroTitle) && site.heroTitle.length) {

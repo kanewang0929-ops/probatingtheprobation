@@ -1,5 +1,8 @@
 import { chromium } from 'playwright';
 const BASE = process.argv[2];
+// 按标题选卡片，不要用序号——加一张卡片就会让所有序号错位
+const card = (p, title) => p.locator('.card').filter({ has: p.locator(`header h2:text-is("${title}")`) });
+
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 const ctx = await b.newContext({ viewport: { width: 1340, height: 980 } });
 const p = await ctx.newPage();
@@ -17,7 +20,7 @@ console.log('子页面条目数:', await p.locator('.pg').count());
 console.log('子页面编号:', (await p.locator('.pg__n').allTextContents()).join(','));
 
 // 三条字幕默认位置相同会叠在一起，先选中第一条再拖
-const cap1 = p.locator('.card').nth(1).locator('.item').first();
+const cap1 = card(p, '节奏字幕').locator('.item').first();
 await cap1.locator('.btn:has-text("在画布上选中这条")').click();
 await p.waitForTimeout(400);
 const xIn = () => cap1.locator('input[type=number]').first().inputValue();
@@ -36,9 +39,9 @@ console.log('拖动后 X/Y:', await xIn(), '/', await yIn(), '（期望接近 22
 console.log('拖动后徽章:', await p.locator('.badge').textContent());
 
 // 切成毛笔 + 黑字
-await p.locator('.card').nth(1).locator('.item').first().locator('.seg button:has-text("毛笔")').click();
+await card(p, '节奏字幕').locator('.item').first().locator('.seg button:has-text("毛笔")').click();
 await p.waitForTimeout(300);
-await p.locator('.card').nth(1).locator('.item').first().locator('.seg button:has-text("黑字")').click();
+await card(p, '节奏字幕').locator('.item').first().locator('.seg button:has-text("黑字")').click();
 await p.waitForTimeout(400);
 console.log('画布首个 chip class:', await p.locator('.stage .chip').first().getAttribute('class'));
 

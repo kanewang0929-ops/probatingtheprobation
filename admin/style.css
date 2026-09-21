@@ -193,3 +193,10 @@ input[type=file]{display:none}
 /* 画布上的字幕块：开了底板就显示成实底，和前台一致 */
 .chip.panel{background:#050506;border-style:solid;border-color:transparent;text-shadow:none}
 .chip.panel.black{background:var(--paper);text-shadow:none}
+
+/* 结尾框的实时预览：照着前台那块白底黑框做，改字能立刻看到效果 */
+.notepv{margin-bottom:17px;padding:clamp(14px,2vw,20px);background:var(--paper);color:var(--ink);
+  border:3px solid #07080b;box-shadow:6px 6px 0 #07080b;max-width:360px}
+.notepv__h{font:900 19px/1.3 "Noto Serif SC",serif;letter-spacing:.03em;word-break:break-word}
+.notepv__p{margin-top:.8em;font-size:12.5px;line-height:1.8;color:#2a2d38;word-break:break-word}
+.notepv__c{margin-top:1em;font:700 12.5px/1 var(--sans);color:var(--rim);word-break:break-word}

@@ -1,5 +1,8 @@
 import { chromium } from 'playwright';
 const B = process.argv[2];
+// 按标题选卡片，不要用序号——加一张卡片就会让所有序号错位
+const card = (p, title) => p.locator('.card').filter({ has: p.locator(`header h2:text-is("${title}")`) });
+
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 const ctx = await b.newContext({ viewport: { width: 1280, height: 720 } });
 const p = await ctx.newPage();
@@ -26,7 +29,7 @@ console.log('>>> 预览打开:', new URL(tab.url()).pathname, '| 站名:', await
 await tab.close();
 
 // ── 三条字幕分别设成：贴最左横排粗毛笔 / 贴最右竖排干笔 / 居中黑字 ──
-const caps = p.locator('.card').nth(1).locator('.item');
+const caps = card(p, '节奏字幕').locator('.item');
 async function setCap(i, { x, y, font, color, orient }) {
   const it = caps.nth(i);
   await it.locator(`.seg button:has-text("${font}")`).click();  await p.waitForTimeout(250);

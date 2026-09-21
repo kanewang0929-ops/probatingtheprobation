@@ -11,7 +11,7 @@ const L = {  // 与服务端 lib/content.js 的 LIMITS 保持一致，登录后�
   step:{max:60}, steps:{min:1,max:6}, bubbles:{max:6},
   cx:{min:0,max:2560}, cy:{min:0,max:1440}, r:{min:40,max:600}, sec:{min:0,max:60},
   pos:{min:0,max:100}, size:{min:60,max:220},
-  noteBody:{max:120},
+  noteBody:{max:120}, noteCue:{max:20},
   pageTitle:{max:60}, pageLead:{max:160}, blockText:{max:2000},
   blockCaption:{max:120}, alt:{max:120}, blocks:{max:40}
 };
@@ -303,19 +303,14 @@ function siteCard(d) {
   });
 
   return el('section', { class: 'card' }, [
-    el('header', {}, [el('h2', { text: '站点信息' }), el('span', { class: 'hint', text: '页面顶部、首屏与结尾框文案' })]),
+    el('header', {}, [el('h2', { text: '站点信息' }), el('span', { class: 'hint', text: '页面顶部与首屏文案' })]),
     el('div', { class: 'body' }, [
       textField({ label: '站名（页面左上角）', value: s.brand, max: L.brand.max, required: true,
         onInput: v => { s.brand = v; } }),
       ...heroFields,
       el('div', { class: 'row', style: 'margin:-6px 0 15px' }, [addLine, delLine]),
-      textField({ label: '结尾框标题', value: s.noteTitle, max: L.noteTitle.max, required: true,
-        onInput: v => { s.noteTitle = v; } }),
-      textField({ label: '结尾框正文', value: s.noteBody || '', max: L.noteBody.max, required: true,
-        multiline: true, rows: 2, onInput: v => { s.noteBody = v; } }),
-      el('p', { class: 'up__meta', style: 'margin:-8px 0 0',
-        text: '结尾框现在要点完四个泡泡之后才出现，点它会播放结尾影像。'
-            + '原来那句「点开一个，看看我怎么想」是引导去点泡泡的，放在这个位置已经不成立，建议改写成收尾的话。' })
+      textField({ label: '泡泡区标题', value: s.noteTitle, max: L.noteTitle.max, required: true,
+        onInput: v => { s.noteTitle = v; } })
     ])
   ]);
 }
@@ -325,6 +320,44 @@ const clamp01 = v => Math.min(100, Math.max(0, v));
 const round1 = v => Math.round(v * 10) / 10;
 
 /** 16:9 画布，按视口百分比摆放每条字幕，可直接拖动。 */
+/* ───────── 结尾框 ─────────
+   就是页面右侧那块白底黑框。四个泡泡都点开过之后才出现，点它播放结尾影像。*/
+function noteCard(d) {
+  const s = d.site;
+  // 预览就地更新，不走 render()——整页重绘会把正在输入的光标打断
+  const h = el('div', { class: 'notepv__h' });
+  const b = el('div', { class: 'notepv__p' });
+  const c = el('div', { class: 'notepv__c' });
+  const preview = {
+    node: el('div', { class: 'notepv' }, [h, b, c]),
+    sync() {
+      h.textContent = s.noteTitle || '（标题）';
+      b.textContent = s.noteBody || '（正文）';
+      c.textContent = (s.noteCue || '（按钮文字）') + ' →';
+    }
+  };
+  preview.sync();
+
+  return el('section', { class: 'card' }, [
+    el('header', {}, [
+      el('h2', { text: '结尾框' }),
+      el('span', { class: 'hint', text: '点完四个泡泡后出现 · 点它播放结尾影像' })
+    ]),
+    el('div', { class: 'body' }, [
+      preview.node,
+      textField({ label: '标题', value: s.noteTitle, max: L.noteTitle.max, required: true,
+        onInput: v => { s.noteTitle = v; preview.sync(); } }),
+      textField({ label: '正文', value: s.noteBody || '', max: L.noteBody.max, required: true,
+        multiline: true, rows: 3, onInput: v => { s.noteBody = v; preview.sync(); } }),
+      textField({ label: '按钮文字（末尾的箭头是自动加的）', value: s.noteCue || '', max: L.noteCue.max,
+        required: true, onInput: v => { s.noteCue = v; preview.sync(); } }),
+      el('p', { class: 'up__meta',
+        text: '提醒：这个框现在只在四个泡泡都点开之后才出现。'
+            + '「点开一个，看看我怎么想」原本是引导去点泡泡的，放在这个位置已经不成立，建议改写成收尾的话。' })
+    ])
+  ]);
+}
+
 function captionStage(list, refs) {
   const stage = el('div', { class: 'stage' }, [
     el('div', { class: 'stage__safe' }),
@@ -911,7 +944,7 @@ function render() {
       } })
   ]));
   app.appendChild(el('div', { class: 'wrap' }, [
-    msgNode(), siteCard(d), captionsCard(d), bubblesCard(d), pagesCard(d)
+    msgNode(), siteCard(d), noteCard(d), captionsCard(d), bubblesCard(d), pagesCard(d)
   ].filter(Boolean)));
   renderBar();
 }
