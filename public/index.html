@@ -89,31 +89,30 @@ html.is-viewing .rail{opacity:0}
   width:max-content;max-width:min(92vw,1100px);max-height:92vh;text-align:center;
   opacity:0;transition:opacity var(--fade) ease}
 .caption.is-on{opacity:1}
-.caption__text{position:relative;isolation:isolate;display:inline-block;padding:.72em 1.7em .8em;color:#fff;
+/* 不加底板：字直接压在画面上。留一点内边距，避免毛笔笔锋的出锋被裁掉。*/
+.caption__text{display:inline-block;padding:.12em .28em;color:#fff;
   font:900 calc(clamp(16px,2.05vw,34px) * var(--cap-scale,1))/1.6 var(--serif);
   letter-spacing:.06em;text-wrap:balance;
   transform:translateY(8px);transition:transform var(--fade) ease}
 .caption.is-on .caption__text{transform:none}
-.caption__text::before{content:"";position:absolute;inset:0;z-index:-1;background:#050506;
-  clip-path:polygon(0 12%,100% 0,99% 88%,1% 100%)}
 /* 毛笔：笔画本身就重，不再加粗，字距放开一点 */
 .caption--brush .caption__text,.caption--dry .caption__text{font-weight:400;letter-spacing:.1em;
   font-size:calc(clamp(20px,2.6vw,44px) * var(--cap-scale,1))}
 .caption--brush .caption__text{font-family:var(--brush)}
 .caption--dry .caption__text{font-family:var(--brush-dry)}
 
-/* 竖排：从上往下、从右往左。
-   竖排时文字的行进方向变成纵向，上面的 width:max-content 管不到它，
-   列长会退化成「从 top 到视口底部的剩余空间」——位置越往下字被挤得越短。
-   所以这里显式给一个 max-content 的高度，再用 max-height 收住。*/
-.caption--vertical .caption__text{writing-mode:vertical-rl;padding:1.7em .72em;text-align:start;
-  /* 列长按字数算（每个汉字约一个 em，外加上下内边距），不够高时再折成多列。
-     intrinsic 的 max-content 在这里不生效，所以显式给出。*/
-  height:min(86vh,calc(var(--cap-len,12) * 1em + 3.4em))}
-.caption--vertical .caption__text::before{clip-path:polygon(88% 0,100% 100%,12% 99%,0 1%)}
-/* 黑字配浅底，保证在深色画面上也读得清 */
+/* 竖排：一条直线从上落到底，永远不折列——像一道雨痕。
+   nowrap 保证不换列；字数多时按 80vh / 字数 自动缩小字号，让整句一列装得下。
+   （汉字沿列方向每字约一个 em，加上 .1em 字距，80vh 折算下来正好落在视口内。）*/
+.caption--vertical .caption__text{writing-mode:vertical-rl;white-space:nowrap;
+  padding:.28em .12em;text-align:start;
+  font-size:min(calc(clamp(16px,2.05vw,34px) * var(--cap-scale,1)),
+                calc(80vh / var(--cap-len,12)))}
+.caption--brush.caption--vertical .caption__text,
+.caption--dry.caption--vertical .caption__text{
+  font-size:min(calc(clamp(20px,2.6vw,44px) * var(--cap-scale,1)),
+                calc(80vh / var(--cap-len,12)))}
 .caption--black .caption__text{color:#07080b}
-.caption--black .caption__text::before{background:var(--paper)}
 
 /* ───────── 结尾：右侧说明 + 四个泡泡 ───────── */
 .note{position:fixed;z-index:6;right:clamp(16px,4vw,96px);top:50%;transform:translateY(-50%);width:min(30vw,400px);

@@ -427,8 +427,8 @@ function captionItem(c, list, i, refs) {
           onChange: v => { c.orient = v; } })
       ]),
       el('p', { class: 'up__meta', style: 'margin:-8px 0 14px',
-        text: (c.color === 'black' ? '黑字配浅色底板' : '白字配深色底板')
-          + ((c.orient || 'horizontal') === 'vertical' ? ' · 竖排从上往下、从右往左' : '') }),
+        text: (c.color === 'black' ? '黑字' : '白字') + '，无底板，直接压在影像上'
+          + ((c.orient || 'horizontal') === 'vertical' ? ' · 竖排一列直落到底，字多时自动缩小字号' : '') }),
 
       rangeField({ label: '字号', value: c.size, min: L.size.min, max: L.size.max, step: 5, suffix: '%',
         onInput: v => { c.size = v; } }),
