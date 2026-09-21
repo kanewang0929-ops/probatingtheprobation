@@ -7,7 +7,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import * as db from './lib/db.js';
-import { validate, toPublic, toPreview, LIMITS } from './lib/content.js';
+import { validate, toPublic, toPreview, LIMITS, migrate, listPages, getPage, referencedAssets, CAPTION_FONTS, CAPTION_COLORS } from './lib/content.js';
+import { renderSubpage, renderNotFound } from './lib/subpage.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
@@ -19,7 +20,12 @@ const SESSION_TTL = 12 * 60 * 60 * 1000; // 12 小时
 
 const app = express();
 app.disable('x-powered-by');
-app.use(express.json({ limit: '256kb' }));
+app.use(express.json({ limit: '2mb' }));
+
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024;   // 单张图 4MB
+const MIME_EXT = {
+  'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/avif': 'avif'
+};
 
 /* ───────── 会话：HMAC 签名 Cookie，不落库 ───────── */
 function sign(payload) {
@@ -111,6 +117,39 @@ app.get('/index.html', (req, res) => servePage(req, res, 'public'));
 // 草稿预览，需登录
 app.get('/preview', requireAuth, (req, res) => servePage(req, res, 'preview'));
 
+/* ───────── 子页面 ───────── */
+async function serveSub(req, res, mode) {
+  const n = Number(req.params.n);
+  const preview = mode === 'preview';
+  if (!Number.isInteger(n) || n < 1) {
+    return res.status(404).type('html').send(renderNotFound(preview));
+  }
+  let content = null;
+  try {
+    content = preview ? (await db.getDraft())?.draft : await db.getPublished();
+  } catch (e) {
+    if (DEV) console.error('[子页面读取失败]', e.message);
+  }
+  const page = content ? getPage(content, n, { onlyPublished: !preview }) : null;
+  res.set('Cache-Control', preview ? 'no-store' : 'public, max-age=0, must-revalidate');
+  if (!page) return res.status(404).type('html').send(renderNotFound(preview));
+  const brand = content?.site?.brand || '';
+  res.type('html').send(renderSubpage(page, { preview, brand }));
+}
+
+app.get('/p/:n', (req, res) => serveSub(req, res, 'public'));
+app.get('/preview/p/:n', requireAuth, (req, res) => serveSub(req, res, 'preview'));
+
+/* ───────── 图片：id 是内容哈希，可以按 immutable 长缓存 ───────── */
+app.get('/assets/:id', async (req, res) => {
+  if (!/^[a-f0-9]{32}$/.test(req.params.id)) return res.status(404).end();
+  const a = await db.getAsset(req.params.id);
+  if (!a) return res.status(404).end();
+  res.set('Cache-Control', 'public, max-age=31536000, immutable');
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.type(a.mime).send(a.bytes);
+});
+
 /* 视频等静态资源；index.html 交给上面的路由处理 */
 app.use(express.static(path.join(ROOT, 'public'), {
   index: false,
@@ -144,7 +183,11 @@ app.post('/api/admin/logout', (req, res) => {
 });
 
 app.get('/api/admin/session', (req, res) => {
-  res.json({ authed: Boolean(session(req)), enabled: Boolean(ADMIN_PASSWORD), limits: LIMITS });
+  res.json({
+    authed: Boolean(session(req)), enabled: Boolean(ADMIN_PASSWORD), limits: LIMITS,
+    captionFonts: CAPTION_FONTS, captionColors: CAPTION_COLORS,
+    maxImageBytes: MAX_IMAGE_BYTES, imageTypes: Object.keys(MIME_EXT)
+  });
 });
 
 app.get('/api/admin/content', requireAuth, async (req, res) => {
@@ -159,8 +202,10 @@ app.get('/api/admin/content', requireAuth, async (req, res) => {
   }
   const published = await db.getPublished();
   res.set('Cache-Control', 'no-store');
+  const draft = migrate(d.draft);
   res.json({
-    draft: d.draft,
+    draft,
+    pages: listPages(draft),   // 每个步骤对应第几个子页面
     updatedAt: d.updatedAt,
     dirty: JSON.stringify(d.draft) !== JSON.stringify(published)
   });
@@ -194,6 +239,48 @@ app.post('/api/admin/revert', requireAuth, async (req, res) => {
 });
 
 app.get('/api/admin/seed', requireAuth, (req, res) => res.json(db.seed()));
+
+/* ───────── 图片上传 ─────────
+   直接收原始字节（Content-Type 指明格式），不走 multipart，省一个依赖。
+   id = 内容 sha256 前 32 位：同图重复上传只存一份。*/
+app.post('/api/admin/assets',
+  requireAuth,
+  express.raw({ type: Object.keys(MIME_EXT), limit: MAX_IMAGE_BYTES }),
+  async (req, res) => {
+    const mime = (req.headers['content-type'] || '').split(';')[0].trim();
+    if (!MIME_EXT[mime]) {
+      return res.status(415).json({ error: `不支持的图片格式：${mime || '未知'}。可用：${Object.keys(MIME_EXT).join('、')}` });
+    }
+    if (!Buffer.isBuffer(req.body) || !req.body.length) {
+      return res.status(400).json({ error: '没有收到图片内容' });
+    }
+    if (req.body.length > MAX_IMAGE_BYTES) {
+      return res.status(413).json({ error: `图片超过 ${Math.round(MAX_IMAGE_BYTES / 1024 / 1024)}MB` });
+    }
+    const id = crypto.createHash('sha256').update(req.body).digest('hex').slice(0, 32);
+    const ok = await db.putAsset(id, mime, req.body);
+    if (!ok) return res.status(503).json({ error: '上传失败：数据库不可用', detail: DEV ? db.status().error : undefined });
+    res.json({ id, url: `/assets/${id}`, mime, size: req.body.length });
+  }
+);
+
+/* 上传体积超限时 express.raw 会抛错，转成能看懂的提示 */
+app.use('/api/admin/assets', (err, req, res, _next) => {
+  if (err?.type === 'entity.too.large') {
+    return res.status(413).json({ error: `图片超过 ${Math.round(MAX_IMAGE_BYTES / 1024 / 1024)}MB` });
+  }
+  return res.status(400).json({ error: '图片上传失败', detail: DEV ? err?.message : undefined });
+});
+
+/* 清理没有被草稿或已发布内容引用的图片 */
+app.post('/api/admin/assets/prune', requireAuth, async (req, res) => {
+  const d = await db.getDraft();
+  const pub = await db.getPublished();
+  if (!d) return res.status(503).json({ error: '数据库不可用' });
+  const keep = new Set([...referencedAssets(migrate(d.draft)), ...referencedAssets(migrate(pub))]);
+  const removed = await db.pruneAssets(keep);
+  res.json({ ok: true, removed });
+});
 
 /* ───────── 后台页面 ───────── */
 app.use('/admin', express.static(path.join(ROOT, 'admin'), { index: 'index.html' }));

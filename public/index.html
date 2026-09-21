@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#07080b">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@700;900&display=swap" rel="stylesheet">
 <style>
 /* ───────── 设计变量 ─────────
    ink   影棚里的黑；paper 冷调纸白；rim 视频左侧那道洋红轮廓光，只用在“可点击”的提示上 */
@@ -20,6 +20,7 @@
   --graphite:#2a2d38;
 
   --serif:"Noto Serif SC","Source Han Serif SC","Songti SC","STSong","SimSun",serif;
+  --brush:"Ma Shan Zheng","Noto Serif SC","Songti SC",cursive;
   --sans:"Noto Sans SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
 
   /* 文案容器：fixed + 水平居中。垂直位置只改这一个值；想要正中间就写 50% */
@@ -77,15 +78,28 @@ html.is-viewing .rail{opacity:0}
 
 /* ───────── 滚动文案：fixed，水平居中，淡入淡出切换 ─────────
    文案压在“漫画旁白框”上：不管背景是黑影棚、蓝影棚还是漫画白底，字都读得清 */
-.captions{position:fixed;z-index:6;left:50%;top:var(--caption-y);transform:translate(-50%,-50%);
-  width:min(92vw,1100px);display:grid;place-items:center;pointer-events:none}
-.caption{grid-area:1/1;text-align:center;opacity:0;transform:translateY(8px);
-  transition:opacity var(--fade) ease,transform var(--fade) ease}
-.caption.is-on{opacity:1;transform:none}
+.captions{position:fixed;inset:0;z-index:6;pointer-events:none}
+/* 每条字幕独立定位：left/top 由后台按视口百分比给出，默认沿用原来的居中位置 */
+.caption{--cap-x:50;position:absolute;left:calc(var(--cap-x) * 1%);top:var(--caption-y);
+  transform:translate(-50%,-50%);width:max-content;text-align:center;
+  /* 文字框以定位点为中心，所以能用的宽度是到最近一侧边缘距离的两倍——
+     这样把字幕拖到画面边上也不会被裁掉，居中时仍是原来的 92vw/1100px */
+  max-width:min(92vw,1100px,calc(2 * min(var(--cap-x),100 - var(--cap-x)) * 1vw));
+  opacity:0;transition:opacity var(--fade) ease}
+.caption.is-on{opacity:1}
 .caption__text{position:relative;isolation:isolate;display:inline-block;padding:.72em 1.7em .8em;color:#fff;
-  font:900 clamp(16px,2.05vw,34px)/1.6 var(--serif);letter-spacing:.06em;text-wrap:balance}
+  font:900 calc(clamp(16px,2.05vw,34px) * var(--cap-scale,1))/1.6 var(--serif);
+  letter-spacing:.06em;text-wrap:balance;
+  transform:translateY(8px);transition:transform var(--fade) ease}
+.caption.is-on .caption__text{transform:none}
 .caption__text::before{content:"";position:absolute;inset:0;z-index:-1;background:#050506;
   clip-path:polygon(0 12%,100% 0,99% 88%,1% 100%)}
+/* 毛笔：笔画本身就重，不再加粗，字距放开一点 */
+.caption--brush .caption__text{font-family:var(--brush);font-weight:400;letter-spacing:.1em;
+  font-size:calc(clamp(20px,2.6vw,44px) * var(--cap-scale,1))}
+/* 黑字配浅底，保证在深色画面上也读得清 */
+.caption--black .caption__text{color:#07080b}
+.caption--black .caption__text::before{background:var(--paper)}
 
 /* ───────── 结尾：右侧说明 + 四个泡泡 ───────── */
 .note{position:fixed;z-index:6;right:clamp(16px,4vw,96px);top:50%;transform:translateY(-50%);width:min(30vw,400px);
@@ -150,6 +164,13 @@ html[data-layout="grid"] .rail{display:none}
 .dialog__steps li{counter-increment:s;display:grid;grid-template-columns:26px 1fr;gap:12px;align-items:start;font-size:15px;line-height:1.75}
 .dialog__steps li::before{content:counter(s);display:grid;place-items:center;width:26px;height:26px;margin-top:.15em;border-radius:50%;
   background:var(--ink);color:#fff;font:700 13px/1 var(--sans)}
+.dialog__steps a{color:inherit;text-decoration:none;background-image:linear-gradient(var(--rim),var(--rim));
+  background-size:100% 2px;background-repeat:no-repeat;background-position:0 100%;
+  transition:background-size .2s ease,color .2s ease}
+.dialog__steps a:hover,.dialog__steps a:focus-visible{color:var(--rim)}
+.dialog__steps a::after{content:"→";display:inline-block;margin-left:.45em;
+  transform:translateX(-3px);opacity:0;transition:.2s ease}
+.dialog__steps a:hover::after,.dialog__steps a:focus-visible::after{transform:none;opacity:1}
 .dialog__tabs{flex:none;display:flex;flex-wrap:wrap;gap:8px;margin-top:22px;padding-top:18px;border-top:2px solid var(--ink)}
 .dialog__tab{padding:.7em 1.15em;border:2px solid var(--ink);border-radius:999px;background:transparent;color:var(--ink);
   font:700 14px/1 var(--serif);letter-spacing:.06em;cursor:pointer;transition:background .2s,color .2s}
@@ -317,10 +338,19 @@ const CONFIG = {
                typeof c.from === 'number' && typeof c.to === 'number' && c.from < c.to;
       });
       if (wrap && ok) {
+        var inRange = function (v) { return typeof v === 'number' && v >= 0 && v <= 100; };
         wrap.textContent = '';
         C.captions.forEach(function (c) {
           var p = document.createElement('p');
-          p.className = 'caption';
+          p.className = 'caption'
+            + (c.font === 'brush' ? ' caption--brush' : '')
+            + (c.color === 'black' ? ' caption--black' : '');
+          // 位置与字号越界就不设，交回样式表里的默认值
+          if (inRange(c.x)) p.style.setProperty('--cap-x', c.x);
+          if (inRange(c.y)) p.style.top = c.y + '%';
+          if (typeof c.size === 'number' && c.size >= 60 && c.size <= 220) {
+            p.style.setProperty('--cap-scale', c.size / 100);
+          }
           var span = document.createElement('span');
           span.className = 'caption__text';
           span.textContent = c.text;
@@ -338,14 +368,19 @@ const CONFIG = {
         return b && typeof b.name === 'string' && b.name &&
                typeof b.lead === 'string' && typeof b.body === 'string' &&
                Array.isArray(b.steps) && b.steps.length &&
-               b.steps.every(function (s) { return typeof s === 'string' && s; }) &&
+               b.steps.every(function (s) {
+                 return s && typeof s.text === 'string' && s.text;
+               }) &&
                typeof b.cx === 'number' && b.cx >= 0 && b.cx <= V.w &&
                typeof b.cy === 'number' && b.cy >= 0 && b.cy <= V.h &&
                typeof b.r === 'number' && b.r >= 40 && b.r <= 600;
       });
       if (good.length === C.bubbles.length) {
         CONFIG.bubbles = good.map(function (b) {
-          return { name: b.name, lead: b.lead, body: b.body, steps: b.steps.slice(),
+          return { name: b.name, lead: b.lead, body: b.body,
+                   steps: b.steps.map(function (s) {
+                     return { text: s.text, page: typeof s.page === 'number' ? s.page : null };
+                   }),
                    cx: b.cx, cy: b.cy, r: b.r };
         });
       }
@@ -592,11 +627,20 @@ const bubbleEls = CONFIG.bubbles.map((b, i) => {
   const el = document.createElement('div');
   el.className = 'bubble';
   el.style.setProperty('--i', i);
-  el.innerHTML =
-    `<img class="bubble__img" src="${IMG[i] || ''}" alt="" draggable="false">` +
-    `<button class="bubble__hit" type="button" aria-label="${b.name}：点开查看"></button>` +
-    `<span class="bubble__ring"></span>`;
-  el.querySelector('.bubble__hit').addEventListener('click', () => openBubble(i));
+  // 同样用 DOM 构造：b.name 来自后台，插进属性里会被当作标记解析
+  const img = document.createElement('img');
+  img.className = 'bubble__img';
+  img.src = IMG[i] || '';
+  img.alt = '';
+  img.draggable = false;
+  const hit = document.createElement('button');
+  hit.className = 'bubble__hit';
+  hit.type = 'button';
+  hit.setAttribute('aria-label', b.name + '：点开查看');
+  const ring = document.createElement('span');
+  ring.className = 'bubble__ring';
+  el.append(img, hit, ring);
+  hit.addEventListener('click', () => openBubble(i));
   bubblesEl.appendChild(el);
   return el;
 });
@@ -645,7 +689,23 @@ function fillDialog(i) {
   dlgTitle.textContent = b.name;
   dlgLead.textContent = b.lead;
   dlgBody.textContent = b.body;
-  dlgSteps.innerHTML = b.steps.map(s => `<li><span>${s}</span></li>`).join('');
+  // 用 DOM 构造而不是拼 innerHTML：步骤文案来自后台，拼字符串等于开了注入口子
+  dlgSteps.textContent = '';
+  b.steps.forEach(s => {
+    const step = (typeof s === 'string') ? { text: s, page: null } : s;
+    const li = document.createElement('li');
+    let node;
+    if (typeof step.page === 'number') {
+      node = document.createElement('a');
+      node.href = '/p/' + step.page;
+      node.setAttribute('aria-label', step.text + '（展开这一条）');
+    } else {
+      node = document.createElement('span');
+    }
+    node.textContent = step.text;
+    li.appendChild(node);
+    dlgSteps.appendChild(li);
+  });
   tabEls.forEach((t, k) => t.setAttribute('aria-current', k === i ? 'true' : 'false'));
   dlgScroll.scrollTop = 0;
 }
