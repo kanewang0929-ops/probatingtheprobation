@@ -189,3 +189,7 @@ input[type=file]{display:none}
 .chip.dry{font-family:"Zhi Mang Xing","Ma Shan Zheng",cursive;font-size:14px;letter-spacing:.08em}
 .chip.vert{writing-mode:vertical-rl;max-width:none;max-height:86%;padding:7px 4px;white-space:nowrap;overflow:hidden}
 .chip.vert .chip__n{margin:0 0 5px}
+
+/* 画布上的字幕块：开了底板就显示成实底，和前台一致 */
+.chip.panel{background:#050506;border-style:solid;border-color:transparent;text-shadow:none}
+.chip.panel.black{background:var(--paper);text-shadow:none}

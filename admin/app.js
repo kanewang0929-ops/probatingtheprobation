@@ -11,6 +11,7 @@ const L = {  // 与服务端 lib/content.js 的 LIMITS 保持一致，登录后�
   step:{max:60}, steps:{min:1,max:6}, bubbles:{max:6},
   cx:{min:0,max:2560}, cy:{min:0,max:1440}, r:{min:40,max:600}, sec:{min:0,max:60},
   pos:{min:0,max:100}, size:{min:60,max:220},
+  noteBody:{max:120},
   pageTitle:{max:60}, pageLead:{max:160}, blockText:{max:2000},
   blockCaption:{max:120}, alt:{max:120}, blocks:{max:40}
 };
@@ -302,14 +303,19 @@ function siteCard(d) {
   });
 
   return el('section', { class: 'card' }, [
-    el('header', {}, [el('h2', { text: '站点信息' }), el('span', { class: 'hint', text: '页面顶部与首屏文案' })]),
+    el('header', {}, [el('h2', { text: '站点信息' }), el('span', { class: 'hint', text: '页面顶部、首屏与结尾框文案' })]),
     el('div', { class: 'body' }, [
       textField({ label: '站名（页面左上角）', value: s.brand, max: L.brand.max, required: true,
         onInput: v => { s.brand = v; } }),
       ...heroFields,
       el('div', { class: 'row', style: 'margin:-6px 0 15px' }, [addLine, delLine]),
-      textField({ label: '泡泡区标题', value: s.noteTitle, max: L.noteTitle.max, required: true,
-        onInput: v => { s.noteTitle = v; } })
+      textField({ label: '结尾框标题', value: s.noteTitle, max: L.noteTitle.max, required: true,
+        onInput: v => { s.noteTitle = v; } }),
+      textField({ label: '结尾框正文', value: s.noteBody || '', max: L.noteBody.max, required: true,
+        multiline: true, rows: 2, onInput: v => { s.noteBody = v; } }),
+      el('p', { class: 'up__meta', style: 'margin:-8px 0 0',
+        text: '结尾框现在要点完四个泡泡之后才出现，点它会播放结尾影像。'
+            + '原来那句「点开一个，看看我怎么想」是引导去点泡泡的，放在这个位置已经不成立，建议改写成收尾的话。' })
     ])
   ]);
 }
@@ -332,7 +338,8 @@ function captionStage(list, refs) {
         + (c.color === 'black' ? ' black' : '')
         + (c.font === 'brush' ? ' brush' : '')
         + (c.font === 'dry' ? ' dry' : '')
-        + ((c.orient || 'horizontal') === 'vertical' ? ' vert' : ''),
+        + ((c.orient || 'horizontal') === 'vertical' ? ' vert' : '')
+        + (c.panel === true ? ' panel' : ''),
       title: '拖动调整位置'
     }, [
       el('span', { class: 'chip__n', text: String(i + 1) }),
@@ -424,11 +431,15 @@ function captionItem(c, list, i, refs) {
           onChange: v => { c.color = v; } }),
         segField({ label: '排版', value: c.orient || 'horizontal',
           options: [{ value: 'horizontal', label: '横排' }, { value: 'vertical', label: '竖排' }],
-          onChange: v => { c.orient = v; } })
+          onChange: v => { c.orient = v; } }),
+        segField({ label: '底板', value: c.panel === true ? 'on' : 'off',
+          options: [{ value: 'off', label: '无' }, { value: 'on', label: '有' }],
+          onChange: v => { c.panel = v === 'on'; } })
       ]),
       el('p', { class: 'up__meta', style: 'margin:-8px 0 14px',
-        text: (c.color === 'black' ? '黑字' : '白字') + '，无底板，直接压在影像上'
-          + ((c.orient || 'horizontal') === 'vertical' ? ' · 竖排一列直落到底，字多时自动缩小字号' : '') }),
+        text: (c.color === 'black' ? '黑字' : '白字')
+          + (c.panel === true ? '，配' + (c.color === 'black' ? '浅' : '深') + '色斜切底板' : '，无底板，直接压在影像上')
+          + ((c.orient || 'horizontal') === 'vertical' ? ' · 竖排一列直落到底，字符正立，字多时自动缩小字号' : '') }),
 
       rangeField({ label: '字号', value: c.size, min: L.size.min, max: L.size.max, step: 5, suffix: '%',
         onInput: v => { c.size = v; } }),
@@ -473,7 +484,7 @@ function captionsCard(d) {
           const last = list[list.length - 1];
           const from = last ? Math.min(L.sec.max - 1, last.to + 0.2) : 0;
           list.push({ id: uid('cap'), text: '', from, to: Math.min(L.sec.max, from + 2),
-            x: 50, y: 82, size: 100, color: 'white', font: 'serif', orient: 'horizontal',
+            x: 50, y: 82, size: 100, color: 'white', font: 'serif', orient: 'horizontal', panel: false,
             sortOrder: (list.length + 1) * 10, published: false });
           markDirty(); render();
         }

@@ -89,8 +89,9 @@ html.is-viewing .rail{opacity:0}
   width:max-content;max-width:min(92vw,1100px);max-height:92vh;text-align:center;
   opacity:0;transition:opacity var(--fade) ease}
 .caption.is-on{opacity:1}
-/* 不加底板：字直接压在画面上。留一点内边距，避免毛笔笔锋的出锋被裁掉。*/
-.caption__text{display:inline-block;padding:.12em .28em;color:#fff;
+/* 默认不加底板：字直接压在画面上。留一点内边距，避免毛笔笔锋的出锋被裁掉。
+   需要底板时由后台逐条开启，加 .caption--panel。*/
+.caption__text{position:relative;isolation:isolate;display:inline-block;padding:.12em .28em;color:#fff;
   font:900 calc(clamp(16px,2.05vw,34px) * var(--cap-scale,1))/1.6 var(--serif);
   letter-spacing:.06em;text-wrap:balance;
   transform:translateY(8px);transition:transform var(--fade) ease}
@@ -104,8 +105,8 @@ html.is-viewing .rail{opacity:0}
 /* 竖排：一条直线从上落到底，永远不折列——像一道雨痕。
    nowrap 保证不换列；字数多时按 80vh / 字数 自动缩小字号，让整句一列装得下。
    （汉字沿列方向每字约一个 em，加上 .1em 字距，80vh 折算下来正好落在视口内。）*/
-.caption--vertical .caption__text{writing-mode:vertical-rl;white-space:nowrap;
-  padding:.28em .12em;text-align:start;
+.caption--vertical .caption__text{writing-mode:vertical-rl;text-orientation:upright;
+  white-space:nowrap;padding:.28em .12em;text-align:start;
   font-size:min(calc(clamp(16px,2.05vw,34px) * var(--cap-scale,1)),
                 calc(80vh / var(--cap-len,12)))}
 .caption--brush.caption--vertical .caption__text,
@@ -114,11 +115,44 @@ html.is-viewing .rail{opacity:0}
                 calc(80vh / var(--cap-len,12)))}
 .caption--black .caption__text{color:#07080b}
 
+/* 底板：开启后恢复原来那块斜切色块，深浅跟着文字颜色翻 */
+.caption--panel .caption__text{padding:.72em 1.7em .8em}
+.caption--panel .caption__text::before{content:"";position:absolute;inset:0;z-index:-1;background:#050506;
+  clip-path:polygon(0 12%,100% 0,99% 88%,1% 100%)}
+.caption--panel.caption--black .caption__text::before{background:var(--paper)}
+/* 竖排的底板：斜切方向跟着转 90° */
+.caption--panel.caption--vertical .caption__text{padding:1.7em .8em 1.7em .72em}
+.caption--panel.caption--vertical .caption__text::before{clip-path:polygon(88% 0,100% 100%,12% 99%,0 1%)}
+
+/* ───────── 结尾影像：盖住全屏播放 ───────── */
+.finale{position:fixed;inset:0;z-index:20;background:#000;
+  opacity:0;visibility:hidden;transition:opacity .45s ease,visibility 0s linear .45s}
+.finale.is-on{opacity:1;visibility:visible;transition-delay:0s}
+.finale__v{width:100%;height:100%;object-fit:contain;background:#000}
+.finale__msg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);margin:0;
+  color:#fff;font:500 15px/1.6 var(--sans);letter-spacing:.04em;text-align:center;pointer-events:none}
+.finale__msg:empty{display:none}
+.finale__close{position:absolute;right:clamp(14px,3vw,34px);top:clamp(14px,3vw,34px);
+  width:44px;height:44px;display:grid;place-items:center;border-radius:50%;cursor:pointer;
+  background:rgba(255,255,255,.12);border:0;color:#fff;backdrop-filter:blur(6px);transition:.18s}
+.finale__close:hover,.finale__close:focus-visible{background:rgba(255,255,255,.26)}
+.finale__close svg{width:16px;height:16px}
+
 /* ───────── 结尾：右侧说明 + 四个泡泡 ───────── */
 .note{position:fixed;z-index:6;right:clamp(16px,4vw,96px);top:50%;transform:translateY(-50%);width:min(30vw,400px);
   padding:clamp(18px,2vw,30px);background:var(--paper);color:var(--ink);border:3px solid var(--ink);box-shadow:7px 7px 0 var(--ink);
   opacity:0;visibility:hidden;transition:opacity var(--fade) ease,visibility 0s linear var(--fade)}
 .note.is-on{opacity:1;visibility:visible;transition-delay:0s}
+/* 集齐四个泡泡后才出现，并且可以点 */
+.note.is-clickable{cursor:pointer}
+.note.is-clickable:hover,.note:focus-visible{background:#fff;box-shadow:10px 10px 0 var(--rim);
+  transform:translateY(-50%) translate(-3px,-3px)}
+.note:focus-visible{outline:3px solid var(--rim);outline-offset:4px}
+.note__cue{display:none;margin-top:1em;font:700 clamp(13px,1.1vw,15px)/1 var(--sans);color:var(--rim);
+  letter-spacing:.04em}
+.note.is-clickable .note__cue{display:inline-block}
+.note.is-clickable .note__cue::after{content:" →";display:inline-block;transition:transform .2s ease}
+.note.is-clickable:hover .note__cue::after{transform:translateX(4px)}
 .note h2{font:900 clamp(20px,2.3vw,34px)/1.3 var(--serif);letter-spacing:.03em}
 .note p{margin-top:.9em;font-size:clamp(13px,1.05vw,15px);line-height:1.85;color:var(--graphite)}
 
@@ -241,10 +275,20 @@ html[data-layout="grid"] .dialog__tab{flex:none}
   <p class="caption"><span class="caption__text">指尖一弹，四个念头飞了出去，每一个都是我不肯让步的答案。</span></p>
 </div>
 
-<aside class="note" id="note">
+<aside class="note" id="note" role="button" tabindex="-1" aria-label="播放结尾影像">
   <h2>拆开，跑快，收紧，回头看。</h2>
   <p>四个泡泡，是我做每个项目都会回到的四个动作。点开一个，看看我怎么想。</p>
+  <span class="note__cue" id="noteCue">点我，看最后一段</span>
 </aside>
+
+<!-- 结尾影像：点结尾框才播，带声音（由点击这个用户手势触发） -->
+<div class="finale" id="finale" aria-hidden="true">
+  <video id="v-finale" class="finale__v" playsinline webkit-playsinline preload="none" disablepictureinpicture></video>
+  <p class="finale__msg" id="finaleMsg" aria-live="polite"></p>
+  <button class="finale__close" id="finaleClose" type="button" aria-label="关闭结尾影像">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M2 2l12 12M14 2L2 14"/></svg>
+  </button>
+</div>
 <div class="bubbles" id="bubbles"></div>
 
 <div class="viewer" id="viewer">
@@ -278,7 +322,8 @@ const CONFIG = {
   src: {
     intro: 'intro-loop.mp4',  // 首屏：剪影呼吸循环，autoplay + loop + muted
     main:  'main.mp4',        // 主视频：滚动驱动（全帧内编码，倒放不卡）
-    outro: 'outro-loop.mp4'   // 尾屏：泡泡循环。留空 = 没有单独素材，改用主视频结尾几秒循环
+    outro: 'outro-loop.mp4',  // 尾屏：泡泡循环。留空 = 没有单独素材，改用主视频结尾几秒循环
+    finale: 'finale.mp4'      // 结尾影像：点结尾框才播，唯一带声音的一段
   },
   video: { w: 2560, h: 1440 },  // 视频画面坐标系（下面泡泡的位置都是按这个尺寸量的）
   fallbackDuration: 8.25,       // metadata 读到之前先用这个撑页面高度
@@ -330,6 +375,7 @@ const CONFIG = {
     var site = C.site || {};
     txt(document.querySelector('.brand'), site.brand);
     txt(document.querySelector('.note h2'), site.noteTitle);
+    txt(document.querySelector('.note p'), site.noteBody);
 
     // 首屏标题：用 <br> 元素拼，不用 innerHTML
     if (Array.isArray(site.heroTitle) && site.heroTitle.length) {
@@ -359,7 +405,8 @@ const CONFIG = {
             + (c.font === 'brush' ? ' caption--brush' : '')
             + (c.font === 'dry' ? ' caption--dry' : '')
             + (c.color === 'black' ? ' caption--black' : '')
-            + (c.orient === 'vertical' ? ' caption--vertical' : '');
+            + (c.orient === 'vertical' ? ' caption--vertical' : '')
+            + (c.panel === true ? ' caption--panel' : '');
           // 位置与字号越界就不设，交回样式表里的默认值
           if (inRange(c.x)) p.style.setProperty('--cap-x', c.x);
           if (inRange(c.y)) p.style.setProperty('--cap-y', c.y);
@@ -419,7 +466,8 @@ const smooth = k => k * k * (3 - 2 * k);
 const vIntro = $('#v-intro'), vMain = $('#v-main'), vOutro = $('#v-outro');
 const hero = $('#hero'), cue = $('#cue'), rail = $('#rail');
 const caps = Array.from(document.querySelectorAll('.caption'));
-const note = $('#note'), bubblesEl = $('#bubbles');
+const note = $('#note'), noteCue = $('#noteCue'), bubblesEl = $('#bubbles');
+const finale = $('#finale'), vFinale = $('#v-finale'), finaleMsg = $('#finaleMsg'), finaleClose = $('#finaleClose');
 const viewer = $('#viewer'), backdrop = $('#backdrop'), zoom = $('#zoom'), zoomDisc = $('#zoomDisc'), zoomImg = $('#zoomImg');
 const dialog = $('#dialog'), dlgClose = $('#dlgClose'), dlgScroll = $('#dlgScroll');
 const dlgTitle = $('#dlgTitle'), dlgLead = $('#dlgLead'), dlgBody = $('#dlgBody'), dlgSteps = $('#dlgSteps'), dlgTabs = $('#dlgTabs');
@@ -437,6 +485,9 @@ const S = {
   mx: 0, my: 0, smx: 0, smy: 0,
   locked: false, lockedP: 0, lockScrollY: 0,
   open: false, idx: -1,
+  seen: new Set(),        // 点开过的泡泡，四个集齐结尾框才出现
+  armed: false,           // 结尾影像是否已开始预载
+  playing: false,         // 结尾影像是否正在播
   layout: 'exact',
   reduce: matchMedia('(prefers-reduced-motion: reduce)').matches
 };
@@ -607,7 +658,12 @@ function updateOverlays(p) {
   });
   const end = S.mainReady && p >= CONFIG.bubblesAt && S.cur >= CONFIG.bubblesAt * S.dur - .1;
   root.classList.toggle('at-end', end);
-  note.classList.toggle('is-on', end && !S.open);
+  // 结尾框要等四个泡泡都点开过才出现，并且此时它是可点的
+  const done = S.seen.size >= CONFIG.bubbles.length;
+  const showNote = end && !S.open && !S.playing && done;
+  note.classList.toggle('is-on', showNote);
+  note.classList.toggle('is-clickable', done);
+  note.tabIndex = showNote ? 0 : -1;
   bubblesEl.classList.toggle('is-on', end && !S.open);
 }
 
@@ -729,6 +785,8 @@ function fillDialog(i) {
 function openBubble(i) {
   if (S.open) return swapBubble(i);
   S.open = true; S.idx = i;
+  S.seen.add(i);
+  if (S.seen.size >= CONFIG.bubbles.length) armFinale();
   S.locked = true; S.lockedP = S.progress; S.lockScrollY = scrollY;
   root.classList.add('is-viewing');
   if (S.state === 'outro') vOutro.pause();               // 背景已虚化，暂停解码省电
@@ -749,6 +807,8 @@ function openBubble(i) {
 }
 
 function swapBubble(i) {
+  S.seen.add(i);
+  if (S.seen.size >= CONFIG.bubbles.length) armFinale();
   if (!S.open || i === S.idx) return;
   S.idx = i;
   fillDialog(i);
@@ -774,6 +834,78 @@ function closeViewer() {
   const hit = bubbleEls[i].querySelector('.bubble__hit');
   setTimeout(() => hit && hit.focus({ preventScroll: true }), 400);
 }
+
+/* ════════════════ 结尾影像 ════════════════
+   17MB，不在首屏预载。等四个泡泡都点开过（结尾框即将出现）才挂 src 开始下载，
+   这时用户正在读结尾框的文案，有几秒缓冲。文件已做过 faststart，不必等下完就能起播。*/
+function armFinale() {
+  if (S.armed) return;
+  S.armed = true;
+  vFinale.preload = 'auto';
+  vFinale.src = CONFIG.src.finale;
+  vFinale.load();
+}
+
+function playFinale() {
+  if (S.playing || !S.seen.size) return;
+  if (!S.armed) armFinale();
+
+  S.playing = true;
+  S.locked = true; S.lockedP = S.progress; S.lockScrollY = scrollY;
+  root.classList.add('is-viewing');
+  if (S.state === 'outro') vOutro.pause();               // 背景被盖住了，暂停解码省电
+
+  finale.classList.add('is-on');
+  finale.setAttribute('aria-hidden', 'false');
+  finaleMsg.textContent = '';
+  vFinale.currentTime = 0;
+  vFinale.muted = false;                                 // 这一段是有声的
+
+  // play() 必须留在点击的同步调用栈里，否则 iOS Safari 会拒绝带声播放
+  const go = vFinale.play();
+  if (go && go.catch) {
+    go.catch(() => {
+      // 带声被拒就退回静音播放，总比黑屏强
+      vFinale.muted = true;
+      vFinale.play().catch(() => {
+        finaleMsg.textContent = '这段影像没能播放，请刷新后再试';
+      });
+    });
+  }
+  setTimeout(() => finaleClose.focus({ preventScroll: true }), 400);
+}
+
+function endFinale() {
+  if (!S.playing) return;
+  S.playing = false;
+  vFinale.pause();
+  finale.classList.remove('is-on');
+  finale.setAttribute('aria-hidden', 'true');
+  finaleMsg.textContent = '';
+  root.classList.remove('is-viewing');
+  S.locked = false;
+  if (Math.abs(scrollY - S.lockScrollY) > 1) scrollTo(0, S.lockScrollY);
+  if (S.state === 'outro') vOutro.play().catch(() => {});
+  setTimeout(() => note.focus({ preventScroll: true }), 300);
+}
+
+note.addEventListener('click', () => {
+  if (note.classList.contains('is-clickable')) playFinale();
+});
+note.addEventListener('keydown', e => {
+  if (!note.classList.contains('is-clickable')) return;
+  if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') { e.preventDefault(); playFinale(); }
+});
+finaleClose.addEventListener('click', endFinale);
+vFinale.addEventListener('ended', endFinale);
+vFinale.addEventListener('error', () => {
+  if (S.playing) finaleMsg.textContent = '这段影像读不到，请确认 ' + CONFIG.src.finale + ' 和 index.html 在同一个文件夹';
+});
+vFinale.addEventListener('waiting', () => { if (S.playing) finaleMsg.textContent = '影像载入中…'; });
+vFinale.addEventListener('playing', () => { finaleMsg.textContent = ''; });
+addEventListener('keydown', e => {
+  if (S.playing && e.key === 'Escape') { e.preventDefault(); endFinale(); }
+});
 
 dlgClose.addEventListener('click', closeViewer);
 backdrop.addEventListener('click', closeViewer);
