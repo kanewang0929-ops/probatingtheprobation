@@ -1,0 +1,11 @@
+# Render Blueprint：把 public/ 目录当作静态站点发布，不需要构建
+services:
+  - type: web
+    runtime: static
+    name: kane-wang-report
+    buildCommand: echo "no build step"
+    staticPublishPath: ./public
+    headers:
+      - path: /*.mp4
+        name: Cache-Control
+        value: public, max-age=86400
