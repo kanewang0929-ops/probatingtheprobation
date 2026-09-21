@@ -325,27 +325,54 @@ function renderBar() {
           state.msg = { type: 'ok', text: '已恢复为正式页面的内容' };
         });
       } }),
-    el('button', { class: 'btn', text: '预览草稿', disabled: state.saving || state.dirty,
-      title: state.dirty ? '请先保存草稿再预览' : '在新标签页查看草稿效果',
-      onClick: () => window.open('/preview', '_blank', 'noopener') }),
+    el('button', { class: 'btn', text: '预览草稿', disabled: state.saving,
+      title: '在新标签页查看效果；有未保存的改动会先自动保存',
+      onClick: () => openPreview() }),
     el('button', { class: 'btn', text: state.saving ? '保存中…' : '保存草稿', disabled: state.saving,
       onClick: () => run(async () => {
-        const r = await api('/api/admin/content', { method: 'PUT', body: JSON.stringify(state.draft) });
-        state.updatedAt = r.updatedAt; state.dirty = false;
-        state.msg = { type: 'ok', text: '草稿已保存。正式页面尚未改变，点「发布」才会生效。' };
+        await saveDraft();
+        state.msg = { type: 'ok', text: '草稿已保存。正式页面尚未改变，点「发布到正式页面」才会生效。' };
       }) }),
     el('button', { class: 'btn primary', text: '发布到正式页面', disabled: state.saving,
       onClick: async () => {
-        if (state.dirty && !await confirmAsk('还有未保存的改动', '当前有未保存的修改，发布只会发布已保存的草稿。要继续吗？', '继续发布')) return;
-        if (!await confirmAsk('发布到正式页面', '已保存的草稿将立即出现在正式页面上，访问者刷新后即可看到。', '发布')) return;
+        const note = state.dirty
+          ? '当前的改动会先自动保存，然后发布到正式页面。访问者刷新后即可看到。'
+          : '草稿将立即出现在正式页面上，访问者刷新后即可看到。';
+        if (!await confirmAsk('发布到正式页面', note, '发布')) return;
         await run(async () => {
+          if (state.dirty) await saveDraft();
           const r = await api('/api/admin/publish', { method: 'POST' });
           state.updatedAt = r.updatedAt;
-          state.msg = { type: 'ok', text: '已发布，正式页面刷新后即为最新内容。' };
+          state.msg = { type: 'ok', text: '已发布。正式页面刷新后即为最新内容。' };
         });
       } })
   ])]);
   document.body.appendChild(bar);
+}
+
+/** 保存草稿。发布与预览都会先调用它，避免改动停留在浏览器里。 */
+async function saveDraft() {
+  const r = await api('/api/admin/content', { method: 'PUT', body: JSON.stringify(state.draft) });
+  state.updatedAt = r.updatedAt;
+  state.dirty = false;
+  return r;
+}
+
+/** 打开草稿预览。有未保存改动时先自动保存，保证预览的就是眼前的内容。
+    新标签页必须同步打开，否则会被浏览器的弹窗拦截挡掉。*/
+async function openPreview() {
+  const win = window.open('', '_blank');
+  if (state.dirty) {
+    let ok = false;
+    await run(async () => {
+      await saveDraft();
+      ok = true;
+      state.msg = { type: 'ok', text: '已自动保存草稿，并在新标签页打开预览。' };
+    });
+    if (!ok) { if (win) win.close(); return; }
+  }
+  if (win) win.location.href = '/preview';
+  else window.open('/preview', '_blank', 'noopener');   // 被拦截时退而求其次
 }
 
 async function run(fn) {
@@ -411,6 +438,9 @@ function render() {
     el('span', { class: 'badge ' + (state.dirty ? 'dirty' : 'clean'),
       text: state.dirty ? '有未保存的改动' : '草稿已保存' }),
     el('span', { class: 'spacer' }),
+    el('button', { class: 'btn sm', text: '预览草稿', disabled: state.saving,
+      title: '在新标签页查看效果；有未保存的改动会先自动保存',
+      onClick: () => openPreview() }),
     el('a', { class: 'btn sm ghost', href: '/', target: '_blank', rel: 'noopener', text: '看正式页面' }),
     el('button', { class: 'btn sm ghost', text: '退出',
       onClick: async () => {
