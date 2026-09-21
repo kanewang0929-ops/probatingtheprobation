@@ -136,6 +136,13 @@ html.is-viewing .rail{opacity:0}
   width:44px;height:44px;display:grid;place-items:center;border-radius:50%;cursor:pointer;
   background:rgba(255,255,255,.12);border:0;color:#fff;backdrop-filter:blur(6px);transition:.18s}
 .finale__close:hover,.finale__close:focus-visible{background:rgba(255,255,255,.26)}
+/* 定格在最后一帧之后，把出口显出来 */
+.finale.is-ended .finale__close{background:rgba(255,255,255,.3);transform:scale(1.08)}
+.finale.is-ended .finale__hint{opacity:1}
+.finale__hint{position:absolute;left:50%;bottom:clamp(18px,4vh,46px);transform:translateX(-50%);
+  margin:0;padding:7px 16px;border-radius:99px;background:rgba(0,0,0,.5);backdrop-filter:blur(6px);
+  color:rgba(255,255,255,.85);font:500 13px/1 var(--sans);letter-spacing:.04em;white-space:nowrap;
+  opacity:0;transition:opacity .4s ease;pointer-events:none}
 .finale__close svg{width:16px;height:16px}
 
 /* ───────── 结尾：右侧说明 + 四个泡泡 ───────── */
@@ -285,6 +292,7 @@ html[data-layout="grid"] .dialog__tab{flex:none}
 <div class="finale" id="finale" aria-hidden="true">
   <video id="v-finale" class="finale__v" playsinline webkit-playsinline preload="none" disablepictureinpicture></video>
   <p class="finale__msg" id="finaleMsg" aria-live="polite"></p>
+  <p class="finale__hint">按 Esc 或点右上角关闭</p>
   <button class="finale__close" id="finaleClose" type="button" aria-label="关闭结尾影像">
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M2 2l12 12M14 2L2 14"/></svg>
   </button>
@@ -858,6 +866,7 @@ function playFinale() {
   finale.classList.add('is-on');
   finale.setAttribute('aria-hidden', 'false');
   finaleMsg.textContent = '';
+  finale.classList.remove('is-ended');
   vFinale.currentTime = 0;
   vFinale.muted = false;                                 // 这一段是有声的
 
@@ -879,7 +888,7 @@ function endFinale() {
   if (!S.playing) return;
   S.playing = false;
   vFinale.pause();
-  finale.classList.remove('is-on');
+  finale.classList.remove('is-on', 'is-ended');
   finale.setAttribute('aria-hidden', 'true');
   finaleMsg.textContent = '';
   root.classList.remove('is-viewing');
@@ -897,7 +906,12 @@ note.addEventListener('keydown', e => {
   if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') { e.preventDefault(); playFinale(); }
 });
 finaleClose.addEventListener('click', endFinale);
-vFinale.addEventListener('ended', endFinale);
+// 播完不退出，就停在最后一帧。此时把关闭按钮显出来，不然定格画面没有出口。
+vFinale.addEventListener('ended', () => {
+  if (!S.playing) return;
+  vFinale.pause();                                       // 结束时本来就是暂停态，写明确一点
+  finale.classList.add('is-ended');
+});
 vFinale.addEventListener('error', () => {
   if (S.playing) finaleMsg.textContent = '这段影像读不到，请确认 ' + CONFIG.src.finale + ' 和 index.html 在同一个文件夹';
 });
