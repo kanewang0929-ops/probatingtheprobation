@@ -98,9 +98,14 @@ npm run seed     # 从 public/index.html 重新抽取内容作为种子（换了
 
 ```bash
 npm install --no-save playwright
-node scripts/browser-test.mjs http://localhost:3000
-node scripts/admin-test.mjs   http://localhost:3000
+node scripts/browser-test.mjs http://localhost:3000   # 前台：内容注入、泡泡定位、滚动驱动
+node scripts/admin-test.mjs   http://localhost:3000   # 后台：登录、校验、删除确认、平板布局
+node scripts/prod-check.mjs   https://<部署地址>      # 部署后的冒烟检查
 ```
+
+`admin-test.mjs` 需要服务端设了 `ADMIN_PASSWORD=test-pw-12345` 并连上数据库。
+若本机通过自签证书的代理访问外网，`prod-check.mjs` 会因证书校验失败而报错，
+这种情况下改用 `curl` 核对线上文件与本地是否一致即可。
 
 `scripts/patch-page.mjs` 幂等地把内容合并逻辑插进 `public/index.html`，已经插过就跳过。
 

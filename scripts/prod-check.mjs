@@ -1,0 +1,12 @@
+import { chromium } from 'playwright';
+const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+const p = await b.newPage({ viewport:{width:1280,height:800} });
+const errs=[]; p.on('pageerror',e=>errs.push('PAGEERROR: '+e.message));
+p.on('console',m=>{if(m.type()==='error'&&!/CERT|favicon|MediaError|无法播放|404/.test(m.text()))errs.push(m.text())});
+await p.goto(process.argv[2]+'/admin/',{waitUntil:'load'}); await p.waitForTimeout(1500);
+console.log('登录页标题:', await p.locator('.login h1').textContent());
+console.log('样式已加载:', await p.locator('.login .btn').evaluate(n=>getComputedStyle(n).backgroundColor));
+console.log('密码框存在:', await p.locator('.login input[type=password]').count());
+await p.screenshot({path:'/tmp/prod-admin.png'});
+console.log('JS 错误:', errs.length?errs:'(none)');
+await b.close();
