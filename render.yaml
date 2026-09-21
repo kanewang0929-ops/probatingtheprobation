@@ -1,11 +1,32 @@
-# Render Blueprint：把 public/ 目录当作静态站点发布，不需要构建
+# Render Blueprint
+# 前台与后台由同一个 Node 服务提供：
+#   /        转正汇报页面（服务端注入已发布内容，数据库不可用时回退到页面内置内容）
+#   /admin   内容后台
+#   /preview 草稿预览（需登录）
+databases:
+  - name: kane-wang-report-db
+    plan: free
+    region: oregon
+
 services:
   - type: web
-    runtime: static
-    name: kane-wang-report
-    buildCommand: echo "no build step"
-    staticPublishPath: ./public
-    headers:
-      - path: /*.mp4
-        name: Cache-Control
-        value: public, max-age=86400
+    runtime: node
+    name: kane-wang-report-cms
+    plan: free
+    region: oregon
+    branch: claude/focused-franklin-kg99y5
+    buildCommand: npm ci --omit=dev
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: kane-wang-report-db
+          property: connectionString
+      # 后台密码：在 Render 控制台手动填写，不写进仓库
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
