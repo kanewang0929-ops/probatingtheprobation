@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#07080b">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Zhi+Mang+Xing&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@700;900&display=swap" rel="stylesheet">
 <style>
 /* ───────── 设计变量 ─────────
    ink   影棚里的黑；paper 冷调纸白；rim 视频左侧那道洋红轮廓光，只用在“可点击”的提示上 */
@@ -21,6 +21,7 @@
 
   --serif:"Noto Serif SC","Source Han Serif SC","Songti SC","STSong","SimSun",serif;
   --brush:"Ma Shan Zheng","Noto Serif SC","Songti SC",cursive;
+  --brush-dry:"Zhi Mang Xing","Ma Shan Zheng","Noto Serif SC","Songti SC",cursive;
   --sans:"Noto Sans SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
 
   /* 文案容器：fixed + 水平居中。垂直位置只改这一个值；想要正中间就写 50% */
@@ -80,11 +81,12 @@ html.is-viewing .rail{opacity:0}
    文案压在“漫画旁白框”上：不管背景是黑影棚、蓝影棚还是漫画白底，字都读得清 */
 .captions{position:fixed;inset:0;z-index:6;pointer-events:none}
 /* 每条字幕独立定位：left/top 由后台按视口百分比给出，默认沿用原来的居中位置 */
-.caption{--cap-x:50;position:absolute;left:calc(var(--cap-x) * 1%);top:var(--caption-y);
-  transform:translate(-50%,-50%);width:max-content;text-align:center;
-  /* 文字框以定位点为中心，所以能用的宽度是到最近一侧边缘距离的两倍——
-     这样把字幕拖到画面边上也不会被裁掉，居中时仍是原来的 92vw/1100px */
-  max-width:min(92vw,1100px,calc(2 * min(var(--cap-x),100 - var(--cap-x)) * 1vw));
+.caption{--cap-x:50;--cap-y:82;position:absolute;
+  left:calc(var(--cap-x) * 1%);top:calc(var(--cap-y) * 1%);
+  /* 锚点跟着位置线性移动：0% 时贴左/贴顶，50% 时居中，100% 时贴右/贴底。
+     这样字幕能真正放到画面最边上，同时文字框永远不会超出视口。*/
+  transform:translate(calc(var(--cap-x) * -1%),calc(var(--cap-y) * -1%));
+  width:max-content;max-width:min(92vw,1100px);max-height:92vh;text-align:center;
   opacity:0;transition:opacity var(--fade) ease}
 .caption.is-on{opacity:1}
 .caption__text{position:relative;isolation:isolate;display:inline-block;padding:.72em 1.7em .8em;color:#fff;
@@ -95,8 +97,20 @@ html.is-viewing .rail{opacity:0}
 .caption__text::before{content:"";position:absolute;inset:0;z-index:-1;background:#050506;
   clip-path:polygon(0 12%,100% 0,99% 88%,1% 100%)}
 /* 毛笔：笔画本身就重，不再加粗，字距放开一点 */
-.caption--brush .caption__text{font-family:var(--brush);font-weight:400;letter-spacing:.1em;
+.caption--brush .caption__text,.caption--dry .caption__text{font-weight:400;letter-spacing:.1em;
   font-size:calc(clamp(20px,2.6vw,44px) * var(--cap-scale,1))}
+.caption--brush .caption__text{font-family:var(--brush)}
+.caption--dry .caption__text{font-family:var(--brush-dry)}
+
+/* 竖排：从上往下、从右往左。
+   竖排时文字的行进方向变成纵向，上面的 width:max-content 管不到它，
+   列长会退化成「从 top 到视口底部的剩余空间」——位置越往下字被挤得越短。
+   所以这里显式给一个 max-content 的高度，再用 max-height 收住。*/
+.caption--vertical .caption__text{writing-mode:vertical-rl;padding:1.7em .72em;text-align:start;
+  /* 列长按字数算（每个汉字约一个 em，外加上下内边距），不够高时再折成多列。
+     intrinsic 的 max-content 在这里不生效，所以显式给出。*/
+  height:min(86vh,calc(var(--cap-len,12) * 1em + 3.4em))}
+.caption--vertical .caption__text::before{clip-path:polygon(88% 0,100% 100%,12% 99%,0 1%)}
 /* 黑字配浅底，保证在深色画面上也读得清 */
 .caption--black .caption__text{color:#07080b}
 .caption--black .caption__text::before{background:var(--paper)}
@@ -344,10 +358,13 @@ const CONFIG = {
           var p = document.createElement('p');
           p.className = 'caption'
             + (c.font === 'brush' ? ' caption--brush' : '')
-            + (c.color === 'black' ? ' caption--black' : '');
+            + (c.font === 'dry' ? ' caption--dry' : '')
+            + (c.color === 'black' ? ' caption--black' : '')
+            + (c.orient === 'vertical' ? ' caption--vertical' : '');
           // 位置与字号越界就不设，交回样式表里的默认值
           if (inRange(c.x)) p.style.setProperty('--cap-x', c.x);
-          if (inRange(c.y)) p.style.top = c.y + '%';
+          if (inRange(c.y)) p.style.setProperty('--cap-y', c.y);
+          p.style.setProperty('--cap-len', c.text.length);
           if (typeof c.size === 'number' && c.size >= 60 && c.size <= 220) {
             p.style.setProperty('--cap-scale', c.size / 100);
           }

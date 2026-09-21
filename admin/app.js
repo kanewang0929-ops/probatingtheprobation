@@ -16,8 +16,6 @@ const L = {  // 与服务端 lib/content.js 的 LIMITS 保持一致，登录后�
 };
 let MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 let IMAGE_TYPES = ['image/jpeg','image/png','image/webp','image/gif','image/avif'];
-const FONT_LABEL  = { brush: '毛笔', serif: '宋体' };
-const COLOR_LABEL = { white: '白字', black: '黑字' };
 
 let state = { authed:false, enabled:true, draft:null, pages:[], dirty:false, updatedAt:null, saving:false, msg:null };
 
@@ -72,11 +70,19 @@ function confirmAsk(title, body, yesLabel = '确认') {
   });
 }
 
+/** 就地更新顶栏徽章，不整页重绘——重绘会打断正在输入的光标。 */
+function setBadge() {
+  const badge = document.querySelector('.top .badge');
+  if (!badge) return;
+  badge.className = 'badge ' + (state.dirty ? 'dirty' : 'clean');
+  badge.textContent = state.dirty ? '有改动待保存' : '已自动保存';
+}
+
 const markDirty = () => {
   state.dirty = true;
   state.msg = null;
-  const badge = document.querySelector('.top .badge');
-  if (badge) { badge.className = 'badge dirty'; badge.textContent = '有未保存的改动'; }
+  scheduleAutosave();
+  setBadge();
   const msg = document.querySelector('.wrap > .msg');
   if (msg) msg.remove();
   renderBar();
@@ -316,7 +322,7 @@ const round1 = v => Math.round(v * 10) / 10;
 function captionStage(list, refs) {
   const stage = el('div', { class: 'stage' }, [
     el('div', { class: 'stage__safe' }),
-    el('div', { class: 'stage__hint', text: '拖动字幕调整位置 · 越靠边文字可用的宽度越窄、会折更多行，尽量放在虚线内' })
+    el('div', { class: 'stage__hint', text: '拖动字幕调整位置 · 可以一直拖到画面最边上' })
   ]);
 
   list.forEach((c, i) => {
@@ -324,7 +330,9 @@ function captionStage(list, refs) {
       class: 'chip'
         + (c.published === false ? ' off' : '')
         + (c.color === 'black' ? ' black' : '')
-        + (c.font === 'brush' ? ' brush' : ''),
+        + (c.font === 'brush' ? ' brush' : '')
+        + (c.font === 'dry' ? ' dry' : '')
+        + ((c.orient || 'horizontal') === 'vertical' ? ' vert' : ''),
       title: '拖动调整位置'
     }, [
       el('span', { class: 'chip__n', text: String(i + 1) }),
@@ -332,6 +340,8 @@ function captionStage(list, refs) {
     ]);
     chip.style.left = clamp01(c.x) + '%';
     chip.style.top = clamp01(c.y) + '%';
+    // 锚点跟着位置插值，和前台算法一致，画布上看到的贴边效果就是实际效果
+    chip.style.transform = `translate(${-clamp01(c.x)}%,${-clamp01(c.y)}%)`;
     // 时间上错开的字幕在正式页面是一条条出现的，但画布上会全部叠在一起。
     // 用层级 + 选中态保证每一条都抓得到。
     chip.style.zIndex = String(selectedCap === c.id ? 20 : i + 1);
@@ -353,6 +363,7 @@ function captionStage(list, refs) {
         c.y = round1(clamp01(((ev.clientY - box.top) / box.height) * 100));
         chip.style.left = c.x + '%';
         chip.style.top = c.y + '%';
+        chip.style.transform = `translate(${-c.x}%,${-c.y}%)`;
         // 同步下面的数字输入框，避免拖完还要整页重绘
         const ref = refs[c.id];
         if (ref) { ref.x.value = String(c.x); ref.y.value = String(c.y); }
@@ -405,14 +416,19 @@ function captionItem(c, list, i, refs) {
 
       el('div', { class: 'row' }, [
         segField({ label: '字体', value: c.font, previewClass: 'brush',
-          options: [{ value: 'brush', label: '毛笔' }, { value: 'serif', label: '宋体' }],
+          options: [{ value: 'brush', label: '粗毛笔' }, { value: 'dry', label: '干笔' },
+                    { value: 'serif', label: '宋体' }],
           onChange: v => { c.font = v; } }),
         segField({ label: '颜色', value: c.color,
           options: [{ value: 'white', label: '白字' }, { value: 'black', label: '黑字' }],
-          onChange: v => { c.color = v; } })
+          onChange: v => { c.color = v; } }),
+        segField({ label: '排版', value: c.orient || 'horizontal',
+          options: [{ value: 'horizontal', label: '横排' }, { value: 'vertical', label: '竖排' }],
+          onChange: v => { c.orient = v; } })
       ]),
-      el('p', { class: 'up__meta', text: c.color === 'black' ? '黑字会配浅色底板' : '白字会配深色底板',
-        style: 'margin:-8px 0 14px' }),
+      el('p', { class: 'up__meta', style: 'margin:-8px 0 14px',
+        text: (c.color === 'black' ? '黑字配浅色底板' : '白字配深色底板')
+          + ((c.orient || 'horizontal') === 'vertical' ? ' · 竖排从上往下、从右往左' : '') }),
 
       rangeField({ label: '字号', value: c.size, min: L.size.min, max: L.size.max, step: 5, suffix: '%',
         onInput: v => { c.size = v; } }),
@@ -457,7 +473,7 @@ function captionsCard(d) {
           const last = list[list.length - 1];
           const from = last ? Math.min(L.sec.max - 1, last.to + 0.2) : 0;
           list.push({ id: uid('cap'), text: '', from, to: Math.min(L.sec.max, from + 2),
-            x: 50, y: 62, size: 100, color: 'white', font: 'serif',
+            x: 50, y: 82, size: 100, color: 'white', font: 'serif', orient: 'horizontal',
             sortOrder: (list.length + 1) * 10, published: false });
           markDirty(); render();
         }
@@ -620,8 +636,7 @@ function pageEditor(entry, page) {
   return el('div', { class: 'pg__body' }, [
     el('div', { class: 'row', style: 'margin:13px 0' }, [
       toggle(page.published !== false, v => { page.published = v; render(); }),
-      el('a', { class: 'btn sm ghost', href: '/preview/p/' + entry.n, target: '_blank', rel: 'noopener',
-        text: '预览这一页' }),
+      previewLink('预览这一页', '/preview/p/' + entry.n, 'btn sm ghost'),
       el('span', { class: 'spacer', style: 'flex:1' }),
       el('button', { class: 'btn sm danger', text: '删除整页', onClick: async () => {
         if (!await confirmAsk('删除整页', `子页面 ${entry.n}「${page.title}」的全部内容会被删除。对应的那一条步骤会变回不可点击。`, '删除')) return;
@@ -709,18 +724,31 @@ function pagesCard(d) {
   ]);
 }
 
+/** 预览链接。用真实的 <a target="_blank">，不经过 window.open，弹窗拦截不会拦它。
+    按下时先把待保存的改动推上去，保证新标签页看到的是眼前的内容。*/
+function previewLink(text, href, cls) {
+  const a = el('a', { class: cls, href, target: '_blank', rel: 'noopener', text,
+    title: '在新标签页查看草稿效果' });
+  a.addEventListener('pointerdown', () => { flushAutosave(); });
+  return a;
+}
+
 /* ───────── 底部操作条 ───────── */
 function renderBar() {
   const old = document.querySelector('.bar');
   if (old) old.remove();
   if (!state.authed || !state.draft) return;
 
-  const saved = state.updatedAt
-    ? `上次保存 ${new Date(state.updatedAt).toLocaleString('zh-CN', { hour12: false })}`
+  let saved;
+  if (autosaveStatus === 'saving') saved = '正在自动保存…';
+  else if (autosaveStatus === 'pending') saved = '有改动，马上自动保存';
+  else if (autosaveStatus === 'error') saved = '自动保存未成功：' + (autosaveNote || '');
+  else saved = state.updatedAt
+    ? `已自动保存 ${new Date(state.updatedAt).toLocaleString('zh-CN', { hour12: false })}`
     : '尚未保存';
 
   const bar = el('div', { class: 'bar' }, [el('div', { class: 'inner' }, [
-    el('span', { class: 'saved', text: saved }),
+    el('span', { class: 'saved' + (autosaveStatus === 'error' ? ' bad' : ''), text: saved }),
     el('span', { class: 'spacer' }),
     el('button', { class: 'btn ghost', text: '放弃草稿改动', disabled: state.saving,
       onClick: async () => {
@@ -731,9 +759,7 @@ function renderBar() {
           state.msg = { type: 'ok', text: '已恢复为正式页面的内容' };
         });
       } }),
-    el('button', { class: 'btn', text: '预览草稿', disabled: state.saving,
-      title: '在新标签页查看效果；有未保存的改动会先自动保存',
-      onClick: () => openPreview() }),
+    previewLink('预览草稿', '/preview', 'btn'),
     el('button', { class: 'btn', text: state.saving ? '保存中…' : '保存草稿', disabled: state.saving,
       onClick: () => run(async () => {
         await saveDraft();
@@ -741,9 +767,7 @@ function renderBar() {
       }) }),
     el('button', { class: 'btn primary', text: '发布到正式页面', disabled: state.saving,
       onClick: async () => {
-        const note = state.dirty
-          ? '当前的改动会先自动保存，然后发布到正式页面。访问者刷新后即可看到。'
-          : '草稿将立即出现在正式页面上，访问者刷新后即可看到。';
+        const note = '当前草稿会立即出现在正式页面上，访问者刷新后即可看到。';
         if (!await confirmAsk('发布到正式页面', note, '发布')) return;
         await run(async () => {
           if (state.dirty) await saveDraft();
@@ -756,7 +780,7 @@ function renderBar() {
   document.body.appendChild(bar);
 }
 
-/** 保存草稿。发布与预览都会先调用它，避免改动停留在浏览器里。 */
+/** 保存草稿。发布与自动保存都走这里。 */
 async function saveDraft() {
   const r = await api('/api/admin/content', { method: 'PUT', body: JSON.stringify(state.draft) });
   state.updatedAt = r.updatedAt;
@@ -764,21 +788,42 @@ async function saveDraft() {
   return r;
 }
 
-/** 打开草稿预览。有未保存改动时先自动保存，保证预览的就是眼前的内容。
-    新标签页必须同步打开，否则会被浏览器的弹窗拦截挡掉。*/
-async function openPreview() {
-  const win = window.open('', '_blank');
-  if (state.dirty) {
-    let ok = false;
-    await run(async () => {
-      await saveDraft();
-      ok = true;
-      state.msg = { type: 'ok', text: '已自动保存草稿，并在新标签页打开预览。' };
-    });
-    if (!ok) { if (win) win.close(); return; }
+/* ───────── 自动保存 ─────────
+   之前预览是「先 window.open 开空白页、再异步跳转」，这个模式会被浏览器的弹窗拦截挡掉。
+   改成草稿自动保存后，预览就是一个普通的 target="_blank" 链接——用户点击触发的真实导航，
+   不会被任何拦截器拦下。*/
+let autosaveTimer = null;
+let autosaveStatus = 'idle';   // idle | pending | saving | error
+let autosaveNote = null;
+
+function scheduleAutosave() {
+  clearTimeout(autosaveTimer);
+  autosaveStatus = 'pending';
+  autosaveTimer = setTimeout(flushAutosave, 700);
+}
+
+async function flushAutosave() {
+  clearTimeout(autosaveTimer);
+  if (!state.dirty || state.saving || autosaveStatus === 'saving') return;
+  autosaveStatus = 'saving';
+  renderBar();
+  try {
+    await saveDraft();
+    autosaveStatus = 'idle';
+    autosaveNote = null;
+    setBadge();
+  } catch (e) {
+    if (e.status === 401) {
+      autosaveStatus = 'error';
+      autosaveNote = '登录已过期，改动没有保存';
+    } else {
+      // 边打字边保存时字段常常是半成品，这里只轻提示，不弹红色错误框
+      autosaveStatus = 'error';
+      autosaveNote = e.errors?.length ? e.errors[0] : e.message;
+    }
+    setBadge();
   }
-  if (win) win.location.href = '/preview';
-  else window.open('/preview', '_blank', 'noopener');   // 被拦截时退而求其次
+  renderBar();
 }
 
 async function run(fn) {
@@ -842,11 +887,9 @@ function render() {
   app.appendChild(el('div', { class: 'top' }, [
     el('h1', { text: '内容后台' }),
     el('span', { class: 'badge ' + (state.dirty ? 'dirty' : 'clean'),
-      text: state.dirty ? '有未保存的改动' : '草稿已保存' }),
+      text: state.dirty ? '有改动待保存' : '已自动保存' }),
     el('span', { class: 'spacer' }),
-    el('button', { class: 'btn sm', text: '预览草稿', disabled: state.saving,
-      title: '在新标签页查看效果；有未保存的改动会先自动保存',
-      onClick: () => openPreview() }),
+    previewLink('预览草稿', '/preview', 'btn sm'),
     el('a', { class: 'btn sm ghost', href: '/', target: '_blank', rel: 'noopener', text: '看正式页面' }),
     el('button', { class: 'btn sm ghost', text: '退出',
       onClick: async () => {

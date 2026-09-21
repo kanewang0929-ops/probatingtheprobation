@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import * as db from './lib/db.js';
-import { validate, toPublic, toPreview, LIMITS, migrate, listPages, getPage, referencedAssets, CAPTION_FONTS, CAPTION_COLORS } from './lib/content.js';
+import { validate, toPublic, toPreview, LIMITS, migrate, listPages, getPage, referencedAssets, CAPTION_FONTS, CAPTION_COLORS, CAPTION_ORIENTS } from './lib/content.js';
 import { renderSubpage, renderNotFound } from './lib/subpage.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -185,7 +185,7 @@ app.post('/api/admin/logout', (req, res) => {
 app.get('/api/admin/session', (req, res) => {
   res.json({
     authed: Boolean(session(req)), enabled: Boolean(ADMIN_PASSWORD), limits: LIMITS,
-    captionFonts: CAPTION_FONTS, captionColors: CAPTION_COLORS,
+    captionFonts: CAPTION_FONTS, captionColors: CAPTION_COLORS, captionOrients: CAPTION_ORIENTS,
     maxImageBytes: MAX_IMAGE_BYTES, imageTypes: Object.keys(MIME_EXT)
   });
 });

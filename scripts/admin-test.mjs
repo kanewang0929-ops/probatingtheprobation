@@ -28,7 +28,7 @@ console.log('高级分组默认折叠:', await p.locator('details.adv').first().
 console.log('高级警告文案:', (await p.locator('details.adv .warn').first().textContent()).slice(0, 34) + '…');
 await p.screenshot({ path: '/tmp/admin-1.png', fullPage: false });
 
-// 改一个泡泡名称 → 应出现「有未保存的改动」
+// 改一个泡泡名称 → 应出现「有改动待保存」
 const nameInput = p.locator('.card').nth(2).locator('.item').first().locator('input[type=text]').first();
 await nameInput.fill('测试改名');
 await p.waitForTimeout(400);
