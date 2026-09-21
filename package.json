@@ -3,11 +3,13 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node server.js",
     "seed": "node scripts/extract-seed.mjs",
-    "check": "node --check server.js && node --check lib/db.js && node --check lib/content.js && node --check admin/app.js"
+    "check": "node --check server.js && node --check lib/db.js && node --check lib/content.js && node --check admin/app.js && node scripts/legacy-shapes-test.mjs"
   },
   "dependencies": {
     "express": "^4.21.2",
