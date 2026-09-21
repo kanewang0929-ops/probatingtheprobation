@@ -161,7 +161,10 @@ html.is-viewing .rail{opacity:0}
 .note.is-clickable .note__cue::after{content:" →";display:inline-block;transition:transform .2s ease}
 .note.is-clickable:hover .note__cue::after{transform:translateX(4px)}
 .note h2{font:900 clamp(20px,2.3vw,34px)/1.3 var(--serif);letter-spacing:.03em}
-.note p{margin-top:.9em;font-size:clamp(13px,1.05vw,15px);line-height:1.85;color:var(--graphite)}
+/* pre-line：保留后台里敲的换行，空格仍照常折叠。
+   用 textContent 注入时换行符是在的，只是默认的 white-space 会把它们当普通空白压掉。*/
+.note p{margin-top:.9em;font-size:clamp(13px,1.05vw,15px);line-height:1.85;color:var(--graphite);
+  white-space:pre-line}
 
 .bubbles{position:fixed;inset:0;z-index:7;pointer-events:none;opacity:0;visibility:hidden;
   transition:opacity var(--fade) ease,visibility 0s linear var(--fade)}

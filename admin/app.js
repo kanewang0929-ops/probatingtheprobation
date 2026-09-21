@@ -11,7 +11,7 @@ const L = {  // 与服务端 lib/content.js 的 LIMITS 保持一致，登录后�
   step:{max:60}, steps:{min:1,max:6}, bubbles:{max:6},
   cx:{min:0,max:2560}, cy:{min:0,max:1440}, r:{min:40,max:600}, sec:{min:0,max:60},
   pos:{min:0,max:100}, size:{min:60,max:220},
-  noteBody:{max:120}, noteCue:{max:20},
+  noteBody:{max:200}, noteCue:{max:30},
   pageTitle:{max:60}, pageLead:{max:160}, blockText:{max:2000},
   blockCaption:{max:120}, alt:{max:120}, blocks:{max:40}
 };
@@ -347,8 +347,9 @@ function noteCard(d) {
       preview.node,
       textField({ label: '标题', value: s.noteTitle, max: L.noteTitle.max, required: true,
         onInput: v => { s.noteTitle = v; preview.sync(); } }),
-      textField({ label: '正文', value: s.noteBody || '', max: L.noteBody.max, required: true,
-        multiline: true, rows: 3, onInput: v => { s.noteBody = v; preview.sync(); } }),
+      textField({ label: '正文（回车换行，空一行就空一行）', value: s.noteBody || '', max: L.noteBody.max,
+        required: true, multiline: true, rows: 6,
+        onInput: v => { s.noteBody = v; preview.sync(); } }),
       textField({ label: '按钮文字（末尾的箭头是自动加的）', value: s.noteCue || '', max: L.noteCue.max,
         required: true, onInput: v => { s.noteCue = v; preview.sync(); } }),
       el('p', { class: 'up__meta',
