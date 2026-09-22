@@ -783,6 +783,7 @@ function fillDialog(i) {
       node = document.createElement('a');
       node.href = '/p/' + step.page;
       node.setAttribute('aria-label', step.text + '（展开这一条）');
+      node.addEventListener('click', rememberBeforeLeaving);
     } else {
       node = document.createElement('span');
     }
@@ -845,6 +846,61 @@ function closeViewer() {
   setTimeout(() => { if (!S.open) viewer.classList.remove('is-mounted'); }, 850);
   const hit = bubbleEls[i].querySelector('.bubble__hit');
   setTimeout(() => hit && hit.focus({ preventScroll: true }), 400);
+}
+
+/* ════════════════ 从子页面回来时恢复现场 ════════════════
+   点步骤链接会离开这一页。history.back() 在 bfcache 命中时能原样还原，
+   但这一页挂着几个 <video>，bfcache 未必留得住；一旦没命中就是整页重载，
+   人会被丢回页面顶端，之前滚到哪、开着哪个泡泡全没了。
+   所以离开前把现场存进 sessionStorage，重载时再放回去。*/
+const RETURN_KEY = 'kw:return';
+
+/* 点步骤链接去子页面时把现场记下来。
+   只在这一处写：普通刷新不写，也就不会恢复——上面 scrollRestoration = 'manual'
+   本来就是要让刷新回到首屏的，别跟它拧着来。
+   （别改成 pagehide 里写：刷新也会触发 pagehide。） */
+function rememberBeforeLeaving() {
+  try {
+    sessionStorage.setItem(RETURN_KEY, JSON.stringify({
+      p: S.progress,
+      dur: S.dur,                  // 页面高度 = dur × 100vh，存下来就能立刻还原高度
+      idx: S.open ? S.idx : -1,
+      seen: Array.from(S.seen)
+    }));
+  } catch (e) { /* 隐私模式下 sessionStorage 会抛，忽略即可 */ }
+}
+
+function restoreFromSubpage() {
+  let saved = null;
+  try {
+    saved = JSON.parse(sessionStorage.getItem(RETURN_KEY) || 'null');
+    sessionStorage.removeItem(RETURN_KEY);
+  } catch (e) { return; }
+  if (!saved) return;
+
+  if (Array.isArray(saved.seen)) saved.seen.forEach(i => S.seen.add(i));
+  if (S.seen.size >= CONFIG.bubbles.length) armFinale();
+
+  // 先按存下来的时长把页面高度还原，不必等 main.mp4 的 metadata——
+  // 那是个十几 MB 的文件，等它会让人先在顶端干坐几秒再被弹到中间。
+  if (typeof saved.dur === 'number' && saved.dur > 0) {
+    S.dur = saved.dur;
+    root.style.setProperty('--dur', S.dur);
+  }
+  if (typeof saved.p === 'number') {
+    const maxScroll = Math.max(1, root.scrollHeight - innerHeight);
+    scrollTo(0, clamp(saved.p) * maxScroll);
+    S.progress = clamp(saved.p);
+    S.cur = S.progress * S.dur;      // 视频时间跟着一起对上，避免先闪一帧第 0 秒
+  }
+
+  // 等滚动落位、泡泡重新定位之后再展开，否则 FLIP 动画的起点会算错
+  const i = saved.idx;
+  if (typeof i === 'number' && i >= 0 && i < CONFIG.bubbles.length) {
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (!S.open) openBubble(i);
+    }));
+  }
 }
 
 /* ════════════════ 结尾影像 ════════════════
@@ -960,6 +1016,7 @@ vOutro.style.objectPosition = (CONFIG.focus[CONFIG.focus.length - 1][1] * 100) +
 root.style.setProperty('--dur', S.dur);
 placeRailTicks();
 layoutBubbles();
+restoreFromSubpage();   // 在 initVideos 之前：恢复不依赖视频，等它反而会让人先看到顶端
 initVideos();
 requestAnimationFrame(tick);
 })();

@@ -1,0 +1,12 @@
+import { chromium } from 'playwright';
+const B = process.argv[2];
+const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+const p = await b.newPage({ viewport: { width: 1280, height: 720 } });
+await p.goto(B + '/'); await p.waitForTimeout(2200);
+await p.evaluate(() => scrollTo(0, Math.round((document.documentElement.scrollHeight - innerHeight) * 0.9)));
+await p.waitForTimeout(600);
+console.log('刷新前滚动位置:', await p.evaluate(() => Math.round(scrollY)));
+await p.reload(); await p.waitForTimeout(2200);
+console.log('刷新后滚动位置:', await p.evaluate(() => Math.round(scrollY)), '← 应为 0（刷新回首屏是原有设计）');
+console.log('刷新后弹窗:', await p.evaluate(() => document.querySelector('.viewer').classList.contains('is-open')));
+await b.close();
